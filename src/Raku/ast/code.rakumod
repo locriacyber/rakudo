@@ -24,6 +24,14 @@ class RakuAST::Blockoid is RakuAST::SinkPropagator {
     method visit-children(Code $visitor) {
         $visitor($!statement-list);
     }
+
+    method IMPL-CAN-INTERPRET() {
+        $!statement-list.IMPL-CAN-INTERPRET
+    }
+
+    method IMPL-INTERPRET(RakuAST::IMPL::InterpContext $ctx) {
+        $!statement-list.IMPL-INTERPRET($ctx)
+    }
 }
 
 class RakuAST::OnlyStar is RakuAST::Blockoid {
@@ -79,6 +87,59 @@ class RakuAST::Code is RakuAST::Node {
                 QAST::BVal.new( :value($block) )
             )
         });
+
+        my $stub := nqp::freshcoderef(sub (*@pos, *%named) {
+            #nqp::die('stub called - BEGIN time call not yet implemented');
+            nqp::gethllsym('nqp', 'note')('BEGIN time call on block');
+            for @pos {
+                nqp::gethllsym('nqp', 'note')('param ' ~ $_.HOW.name($_));
+            }
+            if self.IMPL-CAN-INTERPRET {
+                self.IMPL-INTERPRET(RakuAST::IMPL::InterpContext.new);
+            }
+            else {
+                nqp::gethllsym('nqp', 'note')('compiling dynamically');
+
+                my $compunit := QAST::CompUnit.new(
+                    :hll('Raku'),
+                    :sc($context.sc()),
+                    :compilation_mode(0),
+                    $block
+                );
+                my $comp := nqp::getcomp('Raku');
+                my $precomp := $comp.compile($compunit, :from<qast>, :compunit_ok(1));
+                my $mainline := $comp.backend.compunit_mainline($precomp);
+                $mainline(|@pos, |%named);
+                #nqp::gethllsym('nqp', 'note')('mainline called');
+                # Fix up Code object associations (including nested blocks).
+                # We un-stub any code objects for already-compiled inner blocks
+                # to avoid wasting re-compiling them, and also to help make
+                # parametric role outer chain work out. Also set up their static
+                # lexpads, if they have any.
+                #my @coderefs := $comp.backend.compunit_coderefs($precomp);
+                #my $result;
+                #my int $num_subs := nqp::elems(@coderefs);
+                #my int $i := -1;
+                #while ++$i < $num_subs {
+                #    my $subid := nqp::getcodecuid(@coderefs[$i]);
+                #    if $subid eq $block.cuid {
+                #        $result := @coderefs[$i];
+                #    }
+                #}
+
+                # Flag block as dynamically compiled.
+                #$block.annotate('DYNAMICALLY_COMPILED', 1);
+
+                # Return the VM coderef that maps to the thing we were originally
+                # asked to compile.
+                #$result
+            }
+        });
+        nqp::gethllsym('nqp', 'note')('binding do ' ~ $stub.HOW.name($stub) ~ ' on ' ~ nqp::objectid($block));
+        nqp::bindattr($code-obj, Code, '$!do', $stub);
+        nqp::markcodestatic($stub);
+        nqp::markcodestub($stub);
+        nqp::setcodeobj($stub, $code-obj);
     }
 
     method IMPL-APPEND-SIGNATURE-RETURN(RakuAST::IMPL::QASTContext $context, Mu $qast-stmts) {
@@ -408,6 +469,7 @@ class RakuAST::Block is RakuAST::LexicalScope is RakuAST::Term is RakuAST::Code 
                 ?? OPTIONAL-TOPIC-SIG
                 !! REQUIRED-TOPIC-SIG);
         }
+
         $block
     }
 
@@ -551,6 +613,15 @@ class RakuAST::Block is RakuAST::LexicalScope is RakuAST::Term is RakuAST::Code 
     method visit-children(Code $visitor) {
         $visitor($!body);
     }
+
+    method IMPL-CAN-INTERPRET() {
+        $!body.IMPL-CAN-INTERPRET
+    }
+
+    method IMPL-INTERPRET(RakuAST::IMPL::InterpContext $ctx) {
+        nqp::gethllsym('nqp', 'note')('IMPL-INTERPRET on block ' ~ self.dump);
+        $!body.IMPL-INTERPRET($ctx)
+    }
 }
 
 # A pointy block (-> $foo { ... }).
@@ -580,6 +651,15 @@ class RakuAST::PointyBlock is RakuAST::Block {
     method visit-children(Code $visitor) {
         $visitor($!signature);
         $visitor(self.body);
+    }
+
+    method IMPL-CAN-INTERPRET() {
+        $!signature.IMPL-CAN-INTERPRET && self.body.IMPL-CAN-INTERPRET
+    }
+
+    method IMPL-INTERPRET(RakuAST::IMPL::InterpContext $ctx) {
+        nqp::gethllsym('nqp', 'note')('IMPL-INTERPRET on pointy block ' ~ self.dump);
+        self.body.IMPL-INTERPRET($ctx)
     }
 }
 

@@ -7,6 +7,7 @@ class RakuAST::IMPL::QASTContext {
     has int $!num-code-refs;
 
     method new(Mu :$sc!) {
+        nqp::gethllsym('nqp', 'note')('new QASTContext!');
         my $obj := nqp::create(self);
         nqp::bindattr($obj, RakuAST::IMPL::QASTContext, '$!sc', $sc);
         nqp::bindattr($obj, RakuAST::IMPL::QASTContext, '$!post-deserialize', []);

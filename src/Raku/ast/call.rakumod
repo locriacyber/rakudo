@@ -199,7 +199,9 @@ class RakuAST::Call::Name is RakuAST::Term is RakuAST::Call is RakuAST::Lookup {
     }
 
     method IMPL-INTERPRET(RakuAST::IMPL::InterpContext $ctx) {
+        nqp::gethllsym('nqp', 'note')('IMPL-INTERPRET on Call::Name resolving');
         my $resolved := self.resolution.compile-time-value;
+        nqp::gethllsym('nqp', 'note')('IMPL-INTERPRET on Call::Name ' ~ $resolved.HOW.name($resolved));
         my @args := self.args.IMPL-INTERPRET($ctx);
         my @pos := @args[0];
         my %named := @args[1];

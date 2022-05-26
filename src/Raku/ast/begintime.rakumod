@@ -47,7 +47,8 @@ class RakuAST::BeginTime is RakuAST::Node {
             return $resolved(|@pos, |%named);
         }
         else {
-            nqp::die('BEGIN time calls only supported for simple constructs so far')
+            my @args := self.IMPL-UNWRAP-LIST($args);
+            #nqp::die('BEGIN time calls only supported for simple constructs so far. ' ~ @args[0].dump)
         }
     }
 }

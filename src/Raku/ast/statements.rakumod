@@ -155,6 +155,21 @@ class RakuAST::StatementList is RakuAST::SinkPropagator {
     method is-empty() {
         nqp::elems($!statements) == 0 ?? True !! False
     }
+
+    method IMPL-CAN-INTERPRET() {
+        for $!statements {
+            return False unless $_.IMPL-CAN-INTERPRET;
+        }
+        True
+    }
+
+    method IMPL-INTERPRET(RakuAST::IMPL::InterpContext $ctx) {
+        nqp::gethllsym('nqp', 'note')('IMPL-INTERPRET on statement list ' ~ self.dump);
+        for $!statements {
+            nqp::gethllsym('nqp', 'note')('IMPL-INTERPRET on statement of type ' ~ $_.HOW.name($_));
+            $_.IMPL-INTERPRET($ctx);
+        }
+    }
 }
 
 # A semilist is a semicolon-separted list of statements, but used for the

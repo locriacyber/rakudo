@@ -169,6 +169,20 @@ class RakuAST::Package is RakuAST::StubbyMeta is RakuAST::Term
         }
 
         if $!package-declarator eq 'role' {
+            nqp::push(
+                self.IMPL-UNWRAP-LIST($!body.body.statement-list.statements), 
+                RakuAST::Call::Name.new(
+                    :name(RakuAST::Name.from-identifier-parts("nqp", "list")),
+                    :args(
+                        RakuAST::ArgList.new(
+                            RakuAST::VersionLiteral.new($type), #FIXME should be $?CLASS
+                            RakuAST::Call::Name.new(
+                                :name(RakuAST::Name.from-identifier-parts("nqp", "curlexpad"))
+                            ),
+                        )
+                    )
+                )
+            );
             $type.HOW.set_body_block($type, $!body.meta-object);
         }
 
@@ -198,7 +212,12 @@ class RakuAST::Package is RakuAST::StubbyMeta is RakuAST::Term
             $!package-declarator eq 'role' ?? 'declaration_static' !! 'immediate'
         );
         if $!package-declarator eq 'role' {
-            $context.add-code-ref($type-object.HOW.body_block($type-object), $body);
+            nqp::gethllsym('nqp', 'note')($body.dump);
+            $!body.IMPL-LINK-META-OBJECT($context, $body);
+            my $do := nqp::getattr($type-object.HOW.body_block($type-object), Code, '$!do');
+            $context.add-code-ref(
+                nqp::getattr($type-object.HOW.body_block($type-object), Code, '$!do'),
+                $body);
         }
         QAST::Stmts.new(
             $body,
